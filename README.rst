@@ -36,8 +36,14 @@ line of the form::
 and only treat the parts of the file that come ofter this statement. This way,
 you can hide the implementation from the actual final analysis.
 
+Example
+-------
+
+In the folder example, we have a little code example.
+
 TODO
 ----
 
 - run code blocks when converting and print results as well.
 - other starting sequences
+- functionality to include function documentations from before the main block
