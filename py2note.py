@@ -4,58 +4,74 @@ import re
 import sys
 import os
 
-if len(sys.argv) == 1:
-    raise ValueError, "Needed filename to process"
 
-ifname = sys.argv[1]
-s = open(ifname, 'r').readlines()
-
-rst = []
-relevant_block = False
-added_text = True
-for l in s:
-    if not relevant_block:
-        m = re.match(
-            r"^if\s+__name__\s*==\s*[\"']__main__[\"']\s*:\s*$",
-            l)
-        if m:
-            relevant_block = True
-        continue
-
-    # Strip the last newline
-    l = l.rstrip("\n")
-
-    # First strip indent
-    if len(l) > 0:
-        l = l[4:]
+def check_start(l):
+    """Check if this is the starting marker"""
+    m = re.match(
+        r"^if\s+__name__\s*==\s*[\"']__main__[\"']\s*:\s*$",
+        l)
+    if m:
+        return True
     else:
-        continue
+        return False
 
-    # Now check if we are have a comment:
-    if l[0] == '#':
-        if not added_text:
-            rst.append('')
-        l = l[2:]
-        rst.append(l)
-        added_text = True
-    else:
-        # This is executable code. We want to set it as a doctest.
 
-        # First important point: Check if we come from a textblock
-        if added_text:
-            rst.append("")
+class ProcessedLineList(list):
 
-        # Important for this: Detect continued lines
-        l = l.rstrip()
-        if l[0] == " ":
-            rst.append("... " + l)
+    def __init__(self, *args, **kwargs):
+        super(ProcessedLineList, self).__init__(*args, **kwargs)
+        self.added_text = True
+
+    def append(self, l):
+        # Strip the last newline character
+        l = l.rstrip('\n')
+
+        # Strip initial indent
+        if len(l) > 0:
+            l = l[4:]
         else:
-            rst.append(">>> " + l)
-        added_text = False
+            return
 
-base,ext = os.path.splitext(ifname)
-ofname = base+'.rst'
-print "using output filename", ofname
-f = open(ofname, 'w')
-f.write("\n".join(rst))
-f.close()
+        # Check if we have a comment
+        if l[0] == '#':
+            if not self.added_text:
+                super(ProcessedLineList, self).append('')
+            l = l[2:]
+            self.added_text = True
+            return super(ProcessedLineList, self).append(l)
+        else:
+            # We have executable code here set it as a doctest
+            if self.added_text:
+                super(ProcessedLineList, self).append('')
+
+            # Detect continued lines
+            l = l.rstrip()
+            self.added_text = False
+            if l[0] == ' ':
+                return super(ProcessedLineList, self).append('... ' + l)
+            else:
+                return super(ProcessedLineList, self).append('>>> ' + l)
+
+
+if __name__ == '__main__':
+    if len(sys.argv) == 1:
+        raise ValueError("Needed filename to process")
+
+    ifname = sys.argv[1]
+    s = open(ifname, 'r').readlines()
+
+    rst = ProcessedLineList()
+    relevant_block = False
+    added_text = True
+    for l in s:
+        if relevant_block:
+            rst.append(l)
+        else:
+            relevant_block = check_start(l)
+
+    base, ext = os.path.splitext(ifname)
+    ofname = base+'.rst'
+    print "using output filename", ofname
+    f = open(ofname, 'w')
+    f.write("\n".join(rst))
+    f.close()
