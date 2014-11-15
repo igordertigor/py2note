@@ -4,6 +4,7 @@ import re
 import sys
 import os
 import StringIO
+import inspect
 
 
 def check_start(l):
@@ -25,10 +26,10 @@ class ProcessedLineList(list):
 
     def append(self, l):
         # Strip the last newline character
-        l = l.rstrip('\n')
+        l = l.rstrip(' \n')
 
         # Strip initial indent
-        if len(l) > 0:
+        if len(l):
             l = l[4:]
         else:
             return
@@ -79,6 +80,38 @@ class CodeExecutor(dict):
 
         return codeOut.getvalue(), codeErr.getvalue()
 
+    def function_definition(self, fname):
+        return inspect.getsource(self[fname]).split('\n')
+
+    def function_documentation(self, fname):
+        return self[fname].func_doc.split('\n')
+
+    def function_signature(self, fname):
+        f = self[fname]
+        s = f.func_name + '(' + ", ".join(f.func_code.co_varnames) + ')'
+        return s
+
+
+def handle_special(l, evl, rst):
+    """Check code line l for special values"""
+    m = re.search(r'..\sfunc_(code|doc)::\s+(\w+)', l)
+    if m is None:
+        return False
+    action, fname = m.groups()
+    if action == 'code':
+        code = evl.function_definition(fname)
+        for l in code:
+            rst.append(" "*4 + l + '\n')
+    elif action == 'doc':
+        doc = evl.function_documentation(fname)
+        rst.append(' '*4 + '# ' + '**' +
+                   evl.function_signature(fname) + '**')
+        rst.direct_append("")
+        for l in doc:
+            if len(l):
+                rst.append(" "*4 + "# " + l + '\n')
+    return True
+
 if __name__ == '__main__':
     if len(sys.argv) == 1:
         raise ValueError("Needed filename to process")
@@ -91,6 +124,8 @@ if __name__ == '__main__':
     relevant_block = False
     for l in s:
         if relevant_block:
+            if handle_special(l, evl, rst):
+                continue
             rst.append(l)
             out, err = evl(l)
             if len(err):
