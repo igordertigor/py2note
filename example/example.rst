@@ -19,18 +19,40 @@ fine. Yet, we can also write code
 Finally, we can obviously use any function that we defined before the
 starting statement, such as
 
->>> an_ignored_function()
+>>> print myfunction(x)
+4.0
+
 
 Furthermore, continued lines will be recognized and printed as continued
 docstrings
 
 >>> for i in xrange(5):
 ...     print i
+0
+1
+2
+3
+4
+
 
 Now, one other point is that in some cases, we want to include one of the
-above functions in the resulting rst-document. This can be done by using
-the rst-autodoc functionality, but requires sphinx as a translator and is
-therefore not illustrated here.
+above functions in the resulting rst-document. For example, we might
+feel that knowing about myfunction is really crucial, we might want to
+include its docstring:
+
+**myfunction(x)**
+
+We can have a docstring here
+
+In some cases, it isn't so much the docstring, but it's rather the
+implementation that matters. In that case, we can also include the
+source code:
+
+
+>>> def myfunction(x):
+...     """We can have a docstring here"""
+...     return x**2
+
 
 You can now run py2note on this file to generate an rst file and
 afterwards, you can for example convert the rst file to a pdf using

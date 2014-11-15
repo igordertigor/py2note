@@ -1,11 +1,9 @@
 #!/usr/bin/env python
 
-import sys
 
-
-def an_ignored_function():
-    """We can have a docstring here, that is ignored as well"""
-    print sys.path
+def myfunction(x):
+    """We can have a docstring here"""
+    return x**2
 
 if __name__ == "__main__":
     # Example usage of py2note
@@ -29,7 +27,7 @@ if __name__ == "__main__":
     # Finally, we can obviously use any function that we defined before the
     # starting statement, such as
 
-    an_ignored_function()
+    print myfunction(x)
 
     # Furthermore, continued lines will be recognized and printed as continued
     # docstrings
@@ -38,9 +36,17 @@ if __name__ == "__main__":
         print i
 
     # Now, one other point is that in some cases, we want to include one of the
-    # above functions in the resulting rst-document. This can be done by using
-    # the rst-autodoc functionality, but requires sphinx as a translator and is
-    # therefore not illustrated here.
+    # above functions in the resulting rst-document. For example, we might
+    # feel that knowing about myfunction is really crucial, we might want to
+    # include its docstring:
+    #
+    # .. func_doc:: myfunction
+    #
+    # In some cases, it isn't so much the docstring, but it's rather the
+    # implementation that matters. In that case, we can also include the
+    # source code:
+    #
+    # .. func_code:: myfunction
     #
     # You can now run py2note on this file to generate an rst file and
     # afterwards, you can for example convert the rst file to a pdf using
