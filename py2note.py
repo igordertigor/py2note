@@ -5,6 +5,20 @@ import sys
 import os
 import StringIO
 import inspect
+import contextlib
+
+
+@contextlib.contextmanager
+def stdoutIO(stdout=None):
+    """Context manager from
+    http://stackoverflow.com/questions/3906232/python-get-the-print-output-in-an-exec-statement
+    """
+    old = sys.stdout
+    if stdout is None:
+        stdout = StringIO.StringIO()
+    sys.stdout = stdout
+    yield stdout
+    sys.stdout = old
 
 
 def check_start(l):
@@ -20,11 +34,32 @@ def check_start(l):
 
 class ProcessedLineList(list):
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, evaluator, *args, **kwargs):
+        """This list takes unprocessed code lines and converts them into a list
+        of rst strings"""
+        self.evaluator = evaluator
         super(ProcessedLineList, self).__init__(*args, **kwargs)
         self.added_text = True
+        self.codeblock = ""
 
-    def append(self, l):
+    def append(self, l, execute=True):
+        """Append a line from the source file to the rst
+
+        :Parameters:
+            l:          source file line
+            execute:    is this executable code (this is typically assumed, but
+                            could not be true if we are dealing with a function
+                            definition
+
+        :Note:
+            It is important to note, that a single source code line can
+            result in 0, 1, or more lines in the output file. Typically, we
+            ignore empty lines (so an empty input line will typically result in
+            no line being appended). Furthermore, code blocks are prepended by
+            an empty line, which can result in multiple lines being appended.
+            Finally, the output of executed code is included in the file and
+            could therefore in any number of lines.
+        """
         # Strip the last newline character
         l = l.rstrip(' \n')
 
@@ -37,6 +72,7 @@ class ProcessedLineList(list):
         # Check if we have a comment
         if l[0] == '#':
             if not self.added_text:
+                self.flush_codeblock()
                 super(ProcessedLineList, self).append('')
             l = l[2:]
             self.added_text = True
@@ -50,35 +86,53 @@ class ProcessedLineList(list):
             l = l.rstrip()
             self.added_text = False
             if l[0] == ' ':
+                if execute:
+                    self.codeblock += l + '\n'
                 return super(ProcessedLineList, self).append('... ' + l)
             else:
+                self.flush_codeblock()
+                if execute:
+                    self.codeblock += l + '\n'
                 return super(ProcessedLineList, self).append('>>> ' + l)
 
+    def flush_codeblock(self):
+        """If the codeblock contains code, execute it and reinitialize"""
+        if len(self.codeblock):
+            out = self.evaluator(self.codeblock)
+            if len(out):
+                super(ProcessedLineList, self).append(out)
+        self.codeblock = ""
+
     def direct_append(self, l):
+        """Append a line to the list without processing"""
         super(ProcessedLineList, self).append(l)
 
 
 class CodeExecutor(dict):
 
     def __init__(self, fname):
+        """This object executes code in the context of a given file
+
+        :Parameters:
+            fname:  name of the file that provides the context
+        """
         execfile(fname, self)
 
-    def __call__(self, l):
-        codeOut = StringIO.StringIO()
-        codeErr = StringIO.StringIO()
+    def __call__(self, codeblock):
+        """Call codeblock and return standard output
 
-        # Capture output and errors
-        sys.stdout = codeOut
-        sys.stderr = codeErr
+        :Parameters:
+            codeblock:  a block of executable python code (string)
+        """
+        with stdoutIO() as s:
+            try:
+                exec codeblock in self
+            except Exception, e:
+                sys.stderr.write("Problem executing code:\n")
+                sys.stderr.write(l)
+                raise e
 
-        # Execute code
-        exec l[4:] in self
-
-        # Restore stdout and stderr
-        sys.stdout = sys.__stdout__
-        sys.stderr = sys.__stderr__
-
-        return codeOut.getvalue(), codeErr.getvalue()
+        return s.getvalue()
 
     def function_definition(self, fname):
         return inspect.getsource(self[fname]).split('\n')
@@ -96,13 +150,22 @@ def handle_special(l, evl, rst):
     """Check code line l for special values"""
     m = re.search(r'..\sfunc_(code|doc)::\s+(\w+)', l)
     if m is None:
+        # Nothing was requested
         return False
+
     action, fname = m.groups()
+
     if action == 'code':
+
+        # the user requested a function definition
         code = evl.function_definition(fname)
         for l in code:
-            rst.append(" "*4 + l + '\n')
+            # The function definition should *not* be evaluated!
+            rst.append(" "*4 + l + '\n', execute=False)
+
     elif action == 'doc':
+
+        # The user requested a function documentation
         doc = evl.function_documentation(fname)
         rst.append(' '*4 + '# ' + '**' +
                    evl.function_signature(fname) + '**')
@@ -119,21 +182,17 @@ if __name__ == '__main__':
     ifname = sys.argv[1]
     s = open(ifname, 'r').readlines()
 
-    rst = ProcessedLineList()
     evl = CodeExecutor(ifname)
+    rst = ProcessedLineList(evl)
     relevant_block = False
     for l in s:
         if relevant_block:
             if handle_special(l, evl, rst):
                 continue
             rst.append(l)
-            out, err = evl(l)
-            if len(err):
-                raise ValueError('Error evaluting code: %s' % (err,))
-            if len(out):
-                rst.direct_append(out)
         else:
             relevant_block = check_start(l)
+    rst.flush_codeblock()
 
     base, ext = os.path.splitext(ifname)
     ofname = base+'.rst'
