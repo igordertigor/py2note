@@ -45,4 +45,3 @@ TODO
 ----
 
 - other starting sequences
-- functionality to include function documentations from before the main block
