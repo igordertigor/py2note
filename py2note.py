@@ -3,6 +3,7 @@
 import re
 import sys
 import os
+import StringIO
 
 
 def check_start(l):
@@ -52,6 +53,31 @@ class ProcessedLineList(list):
             else:
                 return super(ProcessedLineList, self).append('>>> ' + l)
 
+    def direct_append(self, l):
+        super(ProcessedLineList, self).append(l)
+
+
+class CodeExecutor(dict):
+
+    def __init__(self, fname):
+        execfile(fname, self)
+
+    def __call__(self, l):
+        codeOut = StringIO.StringIO()
+        codeErr = StringIO.StringIO()
+
+        # Capture output and errors
+        sys.stdout = codeOut
+        sys.stderr = codeErr
+
+        # Execute code
+        exec l[4:] in self
+
+        # Restore stdout and stderr
+        sys.stdout = sys.__stdout__
+        sys.stderr = sys.__stderr__
+
+        return codeOut.getvalue(), codeErr.getvalue()
 
 if __name__ == '__main__':
     if len(sys.argv) == 1:
@@ -61,11 +87,16 @@ if __name__ == '__main__':
     s = open(ifname, 'r').readlines()
 
     rst = ProcessedLineList()
+    evl = CodeExecutor(ifname)
     relevant_block = False
-    added_text = True
     for l in s:
         if relevant_block:
             rst.append(l)
+            out, err = evl(l)
+            if len(err):
+                raise ValueError('Error evaluting code: %s' % (err,))
+            if len(out):
+                rst.direct_append(out)
         else:
             relevant_block = check_start(l)
 

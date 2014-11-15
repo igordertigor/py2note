@@ -44,6 +44,5 @@ In the folder example, we have a little code example.
 TODO
 ----
 
-- run code blocks when converting and print results as well.
 - other starting sequences
 - functionality to include function documentations from before the main block
