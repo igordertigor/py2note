@@ -117,7 +117,8 @@ class CodeExecutor(dict):
             fname:  name of the file that provides the context
         """
         exec 'import sys' in self
-        exec 'sys.path.insert(0,".")' in self
+        exec 'import os' in self
+        exec 'sys.path.insert(0,os.curdir)' in self
         execfile(fname, self)
 
     def __call__(self, codeblock):
